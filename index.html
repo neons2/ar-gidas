@@ -454,6 +454,85 @@ body::before{
 </div>
 
 <!-- ═══════════════════════
+     S1b – PERMISSION
+═══════════════════════ -->
+
+<div class="screen off" id="s-perm">
+  <div style="
+    flex:1;display:flex;flex-direction:column;
+    align-items:center;justify-content:center;
+    padding:2.5rem;
+    background:linear-gradient(170deg,#1a140d 0%,#2c1f0e 50%,#1a1408 100%);
+  ">
+    <!-- Icon -->
+    <div style="
+      width:90px;height:90px;border-radius:50%;
+      background:rgba(139,105,20,0.1);
+      border:1.5px solid rgba(139,105,20,0.4);
+      display:flex;align-items:center;justify-content:center;
+      font-size:2.4rem;margin-bottom:2rem;
+      animation:pulseRing 2.5s ease-in-out infinite;
+    ">📍</div>
+
+```
+<div style="
+  font-family:'Playfair Display',serif;font-size:1.6rem;
+  font-weight:400;text-align:center;margin-bottom:0.5rem;
+">Vietos prieiga</div>
+
+<div style="
+  font-size:0.62rem;letter-spacing:0.3em;text-transform:uppercase;
+  color:#8b6914;margin-bottom:2rem;
+">Reikalinga navigacijai</div>
+
+<!-- Explanation box -->
+<div style="
+  background:rgba(139,105,20,0.07);
+  border:1px solid rgba(139,105,20,0.22);
+  border-radius:12px;padding:1.3rem 1.4rem;
+  max-width:320px;width:100%;margin-bottom:1.5rem;
+">
+  <div style="font-size:0.75rem;line-height:1.75;color:rgba(245,239,227,0.65);">
+    Šis gidas naudoja <strong style="color:#c9a96e;">GPS</strong>, kad žinotų
+    kur esi ir automatiškai parodytų istorinę informaciją,
+    kai prieisi prie žymimos vietos.<br><br>
+    Paspaudus mygtuką naršyklė paprašys leidimo.
+    <strong style="color:#c9a96e;">Pasirink „Leisti".</strong>
+  </div>
+</div>
+
+<!-- What happens if denied -->
+<div style="
+  font-size:0.68rem;color:rgba(245,239,227,0.3);
+  text-align:center;margin-bottom:2rem;line-height:1.6;
+">
+  Jei atsisakysi – veiks demo režimas<br>su simuliuojamu judėjimu.
+</div>
+
+<button id="perm-btn" class="btn-start"
+  style="width:100%;max-width:300px;"
+  onclick="requestLocationAndStart()">
+  📍 Leisti sekti vietą
+</button>
+
+<div id="perm-status" style="
+  margin-top:1rem;font-size:0.75rem;
+  color:rgba(245,239,227,0.5);text-align:center;
+  min-height:1.2rem;
+"></div>
+
+<button onclick="launchMap(false)" style="
+  margin-top:1.2rem;background:transparent;border:none;
+  color:rgba(245,239,227,0.25);font-size:0.65rem;
+  letter-spacing:0.15em;text-transform:uppercase;
+  cursor:pointer;font-family:inherit;padding:0.5rem;
+">Praleisti → naudoti demo</button>
+```
+
+  </div>
+</div>
+
+<!-- ═══════════════════════
      S2 – MAP
 ═══════════════════════ -->
 
@@ -702,9 +781,55 @@ function selectRoute(idx, el){
 
 function startTour(){
   activeRoute = ROUTES[Math.min(selectedRouteIdx, ROUTES.length-1)];
+  showScreen('s-perm');
+}
+
+function requestLocationAndStart(){
+  const btn = document.getElementById('perm-btn');
+  const status = document.getElementById('perm-status');
+
+  btn.disabled = true;
+  btn.textContent = 'Laukiama...';
+  status.textContent = '';
+
+  if(!navigator.geolocation){
+    status.textContent = '⚠️ Naršyklė nepalaiko GPS. Bus naudojamas demo režimas.';
+    setTimeout(()=>{ launchMap(false); }, 1800);
+    return;
+  }
+
+  // Explicitly call getCurrentPosition first – this triggers the browser dialog
+  navigator.geolocation.getCurrentPosition(
+    (pos) => {
+      // Permission granted!
+      status.style.color = '#4caf84';
+      status.textContent = '✓ Vieta gauta! Paleidžiama...';
+      setTimeout(()=>{
+        launchMap(true, pos.coords.latitude, pos.coords.longitude, pos.coords.accuracy);
+      }, 700);
+    },
+    (err) => {
+      let msg = '';
+      if(err.code === 1)      msg = 'Lokacija uždrausta. Paleisime demo režimu.';
+      else if(err.code === 2) msg = 'GPS nepasiekiamas. Demo režimas.';
+      else                    msg = 'Timeout. Demo režimas.';
+      status.style.color = '#c9a96e';
+      status.textContent = '⚠️ ' + msg;
+      setTimeout(()=>{ launchMap(false); }, 2000);
+    },
+    { enableHighAccuracy: true, timeout: 12000, maximumAge: 0 }
+  );
+}
+
+function launchMap(hasGps, lat, lon, acc){
   showScreen('s-map');
   initMap();
-  startGPS();
+  if(hasGps){
+    onPosition(lat, lon, acc);
+    startGPSWatch();
+  } else {
+    startDemoMode();
+  }
 }
 
 /* ═══════════════════════
@@ -809,15 +934,18 @@ function updateNextPoi(){
 /* ═══════════════════════
    GPS
 ═══════════════════════ */
-function startGPS(){
-  if(!navigator.geolocation){
-    startDemoMode(); return;
-  }
+function startGPSWatch(){
+  if(!navigator.geolocation) return;
   watchId = navigator.geolocation.watchPosition(
     pos => onPosition(pos.coords.latitude, pos.coords.longitude, pos.coords.accuracy),
-    err => { startDemoMode(); },
+    err => { console.warn('GPS watch error:', err.message); },
     { enableHighAccuracy:true, maximumAge:4000, timeout:12000 }
   );
+}
+
+// Keep old startGPS for any remaining references
+function startGPS(){
+  requestLocationAndStart();
 }
 
 function onPosition(lat,lon,acc){

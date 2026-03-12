@@ -1,0 +1,827 @@
+<!DOCTYPE html>
+<html lang="lt">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no" />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <title>Virtualus Gidas AR</title>
+
+  <!-- A-Frame: WebVR/WebAR pagrindas -->
+
+  <script src="https://aframe.io/releases/1.4.0/aframe.min.js"></script>
+
+  <!-- AR.js: Location-based AR papildinys -->
+
+  <script src="https://raw.githack.com/AR-js-org/AR.js/master/aframe/build/aframe-ar-nft.js"></script>
+
+  <script src="https://raw.githack.com/AR-js-org/AR.js/master/aframe/build/aframe-ar.js"></script>
+
+  <style>
+    /* ── Baziniai stiliai ── */
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      font-family: 'Georgia', serif;
+      background: #0a0a0a;
+      color: #e8dcc8;
+      overflow: hidden;
+    }
+
+    /* ── Paleidimo ekranas ── */
+    #splash {
+      position: fixed;
+      inset: 0;
+      z-index: 9999;
+      background: linear-gradient(160deg, #0f1923 0%, #1a0a05 60%, #0d1a0f 100%);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 2rem;
+      transition: opacity 0.8s ease;
+    }
+
+    #splash.hidden {
+      opacity: 0;
+      pointer-events: none;
+    }
+
+    .splash-emblem {
+      width: 90px;
+      height: 90px;
+      border: 2px solid #c9a96e;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin-bottom: 1.8rem;
+      position: relative;
+      animation: pulseRing 2.5s ease-in-out infinite;
+    }
+
+    .splash-emblem::before {
+      content: '';
+      position: absolute;
+      inset: -8px;
+      border: 1px solid rgba(201,169,110,0.3);
+      border-radius: 50%;
+      animation: pulseRing 2.5s ease-in-out infinite 0.4s;
+    }
+
+    .splash-emblem svg {
+      width: 42px;
+      height: 42px;
+      fill: #c9a96e;
+    }
+
+    @keyframes pulseRing {
+      0%, 100% { box-shadow: 0 0 0 0 rgba(201,169,110,0.4); }
+      50%       { box-shadow: 0 0 0 14px rgba(201,169,110,0); }
+    }
+
+    .splash-title {
+      font-size: 1.9rem;
+      font-weight: 400;
+      letter-spacing: 0.12em;
+      color: #e8dcc8;
+      text-align: center;
+      margin-bottom: 0.4rem;
+    }
+
+    .splash-sub {
+      font-size: 0.75rem;
+      letter-spacing: 0.3em;
+      text-transform: uppercase;
+      color: #c9a96e;
+      margin-bottom: 2.5rem;
+    }
+
+    .splash-desc {
+      max-width: 320px;
+      text-align: center;
+      font-size: 0.92rem;
+      line-height: 1.7;
+      color: #a89880;
+      margin-bottom: 2.5rem;
+    }
+
+    .info-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 0.8rem;
+      width: 100%;
+      max-width: 320px;
+      margin-bottom: 2.5rem;
+    }
+
+    .info-card {
+      background: rgba(201,169,110,0.06);
+      border: 1px solid rgba(201,169,110,0.2);
+      border-radius: 8px;
+      padding: 0.9rem 0.8rem;
+      text-align: center;
+    }
+
+    .info-card .ic-icon { font-size: 1.4rem; margin-bottom: 0.3rem; }
+    .info-card .ic-label { font-size: 0.65rem; letter-spacing: 0.15em; text-transform: uppercase; color: #c9a96e; }
+    .info-card .ic-val   { font-size: 0.78rem; color: #e8dcc8; margin-top: 0.2rem; }
+
+    #start-btn {
+      background: linear-gradient(135deg, #c9a96e, #a07840);
+      color: #0a0a0a;
+      border: none;
+      padding: 0.95rem 2.8rem;
+      font-size: 0.85rem;
+      letter-spacing: 0.2em;
+      text-transform: uppercase;
+      border-radius: 4px;
+      cursor: pointer;
+      font-family: inherit;
+      font-weight: 700;
+      transition: transform 0.15s, box-shadow 0.15s;
+    }
+
+    #start-btn:hover { transform: translateY(-2px); box-shadow: 0 8px 24px rgba(201,169,110,0.35); }
+    #start-btn:active { transform: translateY(0); }
+
+    /* ── Koordinačių nustatymo ekranas ── */
+    #coord-screen {
+      position: fixed;
+      inset: 0;
+      z-index: 9998;
+      background: rgba(10,10,10,0.97);
+      display: none;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 2rem;
+    }
+
+    #coord-screen.active { display: flex; }
+
+    .coord-title {
+      font-size: 1.1rem;
+      letter-spacing: 0.08em;
+      color: #c9a96e;
+      margin-bottom: 0.5rem;
+      text-align: center;
+    }
+
+    .coord-hint {
+      font-size: 0.8rem;
+      color: #a89880;
+      text-align: center;
+      margin-bottom: 2rem;
+      line-height: 1.6;
+    }
+
+    .coord-box {
+      background: rgba(201,169,110,0.06);
+      border: 1px solid rgba(201,169,110,0.25);
+      border-radius: 10px;
+      padding: 1.5rem;
+      width: 100%;
+      max-width: 340px;
+      margin-bottom: 1.5rem;
+    }
+
+    .coord-row {
+      display: flex;
+      flex-direction: column;
+      margin-bottom: 1.2rem;
+    }
+
+    .coord-row:last-child { margin-bottom: 0; }
+
+    .coord-row label {
+      font-size: 0.7rem;
+      letter-spacing: 0.2em;
+      text-transform: uppercase;
+      color: #c9a96e;
+      margin-bottom: 0.4rem;
+    }
+
+    .coord-row input {
+      background: rgba(255,255,255,0.05);
+      border: 1px solid rgba(201,169,110,0.3);
+      border-radius: 6px;
+      color: #e8dcc8;
+      font-family: 'Courier New', monospace;
+      font-size: 1rem;
+      padding: 0.6rem 0.8rem;
+      outline: none;
+      transition: border-color 0.2s;
+    }
+
+    .coord-row input:focus { border-color: #c9a96e; }
+
+    .btn-group {
+      display: flex;
+      gap: 0.8rem;
+      width: 100%;
+      max-width: 340px;
+    }
+
+    .btn-secondary {
+      flex: 1;
+      background: transparent;
+      border: 1px solid rgba(201,169,110,0.4);
+      color: #c9a96e;
+      padding: 0.75rem;
+      font-size: 0.78rem;
+      letter-spacing: 0.15em;
+      text-transform: uppercase;
+      border-radius: 4px;
+      cursor: pointer;
+      font-family: inherit;
+      transition: background 0.2s;
+    }
+
+    .btn-secondary:hover { background: rgba(201,169,110,0.1); }
+
+    .btn-primary {
+      flex: 2;
+      background: linear-gradient(135deg, #c9a96e, #a07840);
+      border: none;
+      color: #0a0a0a;
+      padding: 0.75rem;
+      font-size: 0.78rem;
+      letter-spacing: 0.15em;
+      text-transform: uppercase;
+      border-radius: 4px;
+      cursor: pointer;
+      font-family: inherit;
+      font-weight: 700;
+      transition: opacity 0.2s;
+    }
+
+    .btn-primary:hover { opacity: 0.88; }
+
+    /* ── HUD (heads-up display) ── */
+    #hud {
+      position: fixed;
+      top: 0; left: 0; right: 0;
+      z-index: 100;
+      pointer-events: none;
+      padding: 1rem;
+      display: none;
+    }
+
+    #hud.active { display: block; }
+
+    .hud-bar {
+      background: linear-gradient(135deg, rgba(15,25,35,0.92), rgba(26,10,5,0.92));
+      border: 1px solid rgba(201,169,110,0.3);
+      border-radius: 10px;
+      padding: 0.75rem 1rem;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      backdrop-filter: blur(8px);
+    }
+
+    .hud-title { font-size: 0.85rem; letter-spacing: 0.06em; color: #e8dcc8; }
+    .hud-status { display: flex; align-items: center; gap: 0.4rem; font-size: 0.7rem; color: #a89880; }
+    .status-dot { width: 7px; height: 7px; border-radius: 50%; background: #888; transition: background 0.5s; }
+    .status-dot.active { background: #4caf84; animation: blink 1.8s ease-in-out infinite; }
+
+    @keyframes blink {
+      0%, 100% { opacity: 1; }
+      50%       { opacity: 0.3; }
+    }
+
+    /* ── Objekto info kortelė ── */
+    #info-card {
+      position: fixed;
+      bottom: 1.5rem;
+      left: 1rem;
+      right: 1rem;
+      z-index: 100;
+      display: none;
+      background: linear-gradient(135deg, rgba(15,25,35,0.95), rgba(13,26,15,0.95));
+      border: 1px solid rgba(201,169,110,0.35);
+      border-radius: 12px;
+      padding: 1.2rem 1.3rem;
+      backdrop-filter: blur(12px);
+      animation: slideUp 0.4s ease;
+    }
+
+    #info-card.visible { display: block; }
+
+    @keyframes slideUp {
+      from { transform: translateY(20px); opacity: 0; }
+      to   { transform: translateY(0);    opacity: 1; }
+    }
+
+    .card-tag {
+      font-size: 0.62rem;
+      letter-spacing: 0.25em;
+      text-transform: uppercase;
+      color: #c9a96e;
+      margin-bottom: 0.4rem;
+    }
+
+    .card-name { font-size: 1.15rem; color: #e8dcc8; margin-bottom: 0.5rem; }
+    .card-desc { font-size: 0.82rem; line-height: 1.65; color: #a89880; margin-bottom: 1rem; }
+
+    .card-meta {
+      display: flex;
+      gap: 1.2rem;
+      font-size: 0.7rem;
+      color: #7a6e62;
+      border-top: 1px solid rgba(201,169,110,0.15);
+      padding-top: 0.75rem;
+    }
+
+    .card-meta span { display: flex; align-items: center; gap: 0.3rem; }
+
+    /* ── Atstumas ── */
+    #distance-indicator {
+      position: fixed;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      z-index: 99;
+      padding: 0.5rem 1rem 1rem;
+      display: none;
+    }
+
+    #distance-indicator.active { display: block; }
+
+    .dist-track {
+      background: rgba(201,169,110,0.12);
+      border-radius: 99px;
+      height: 4px;
+      overflow: hidden;
+    }
+
+    .dist-fill {
+      height: 100%;
+      background: linear-gradient(90deg, #4caf84, #c9a96e);
+      border-radius: 99px;
+      transition: width 0.8s ease;
+    }
+
+    .dist-label {
+      text-align: center;
+      font-size: 0.68rem;
+      color: #7a6e62;
+      margin-top: 0.35rem;
+      letter-spacing: 0.1em;
+    }
+
+    /* ── Klaidos pranešimas ── */
+    #error-msg {
+      position: fixed;
+      top: 5rem;
+      left: 1rem;
+      right: 1rem;
+      z-index: 200;
+      background: rgba(180,60,40,0.92);
+      border: 1px solid rgba(255,100,80,0.5);
+      border-radius: 8px;
+      padding: 0.9rem 1rem;
+      font-size: 0.82rem;
+      color: #ffe0da;
+      display: none;
+      line-height: 1.5;
+    }
+
+    #error-msg.visible { display: block; }
+
+    /* A-Frame scena turi užimti visą ekraną */
+    a-scene {
+      position: fixed !important;
+      inset: 0 !important;
+    }
+  </style>
+
+</head>
+<body>
+
+<!-- ════════════════════════════════════════
+     PALEIDIMO EKRANAS
+════════════════════════════════════════ -->
+
+<div id="splash">
+  <div class="splash-emblem">
+    <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+      <path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38
+               0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z"/>
+    </svg>
+  </div>
+
+  <h1 class="splash-title">Virtualus Gidas</h1>
+  <p class="splash-sub">WebAR · Location Based</p>
+  <p class="splash-desc">
+    Pajuskite istoriją realiame pasaulyje – 3D objektai ir istorinės nuotraukos
+    atsiranda tiksliai ten, kur įvyko svarbūs įvykiai.
+  </p>
+
+  <div class="info-grid">
+    <div class="info-card">
+      <div class="ic-icon">📍</div>
+      <div class="ic-label">Technologija</div>
+      <div class="ic-val">GPS + AR.js</div>
+    </div>
+    <div class="info-card">
+      <div class="ic-icon">🌐</div>
+      <div class="ic-label">Platforma</div>
+      <div class="ic-val">Naršyklė</div>
+    </div>
+    <div class="info-card">
+      <div class="ic-icon">📦</div>
+      <div class="ic-label">Variklis</div>
+      <div class="ic-val">A-Frame 1.4</div>
+    </div>
+    <div class="info-card">
+      <div class="ic-icon">🔒</div>
+      <div class="ic-label">Reikalinga</div>
+      <div class="ic-val">GPS prieiga</div>
+    </div>
+  </div>
+
+<button id="start-btn" onclick="startApp()">Pradėti patirtį →</button>
+
+</div>
+
+<!-- ════════════════════════════════════════
+     KOORDINAČIŲ NUSTATYMO EKRANAS
+════════════════════════════════════════ -->
+
+<div id="coord-screen">
+  <p class="coord-title">📍 AR Objekto Vieta</p>
+  <p class="coord-hint">
+    Įveskite koordinates, kur nori<br>matyti 3D objektą,<br>
+    arba naudok savo dabartinę vietą.
+  </p>
+
+  <div class="coord-box">
+    <div class="coord-row">
+      <label>Platuma (Latitude)</label>
+      <input type="number" id="inp-lat" step="0.000001" placeholder="54.687157" />
+    </div>
+    <div class="coord-row">
+      <label>Ilguma (Longitude)</label>
+      <input type="number" id="inp-lon" step="0.000001" placeholder="25.279652" />
+    </div>
+  </div>
+
+  <div class="btn-group">
+    <button class="btn-secondary" onclick="useMyLocation()">📍 Mano vieta</button>
+    <button class="btn-primary"   onclick="launchAR()">Paleisti AR →</button>
+  </div>
+</div>
+
+<!-- ════════════════════════════════════════
+     HUD
+════════════════════════════════════════ -->
+
+<div id="hud">
+  <div class="hud-bar">
+    <span class="hud-title">🏛 Virtualus Gidas</span>
+    <span class="hud-status">
+      <span class="status-dot" id="gps-dot"></span>
+      <span id="gps-label">GPS...</span>
+    </span>
+  </div>
+</div>
+
+<!-- ════════════════════════════════════════
+     KLAIDOS PRANEŠIMAS
+════════════════════════════════════════ -->
+
+<div id="error-msg" id="err"></div>
+
+<!-- ════════════════════════════════════════
+     OBJEKTO INFO KORTELĖ
+════════════════════════════════════════ -->
+
+<div id="info-card">
+  <div class="card-tag">📍 Istorinis objektas · Vilnius</div>
+  <div class="card-name">Gedimino Pilies Bokštas</div>
+  <div class="card-desc">
+    XIV a. pilies gynybinis bokštas – seniausias išlikęs Vilniaus gynybinės sienos
+    fragmentas. Bokštas buvo Lietuvos Didžiosios Kunigaikštystės galios simbolis.
+  </div>
+  <div class="card-meta">
+    <span>🏛 XIV amžius</span>
+    <span>📏 ~20 m aukščio</span>
+    <span>🎖 UNESCO zona</span>
+  </div>
+</div>
+
+<!-- ════════════════════════════════════════
+     ATSTUMO JUOSTA
+════════════════════════════════════════ -->
+
+<div id="distance-indicator">
+  <div class="dist-track"><div class="dist-fill" id="dist-fill" style="width:0%"></div></div>
+  <div class="dist-label" id="dist-label">Skaičiuojamas atstumas...</div>
+</div>
+
+<!-- ════════════════════════════════════════
+     A-FRAME AR SCENA
+════════════════════════════════════════ -->
+
+<a-scene
+id=“ar-scene”
+vr-mode-ui=“enabled: false”
+arjs=“sourceType: webcam; videoTexture: true; debugUIEnabled: false;”
+renderer=“antialias: true; alpha: true”
+embedded
+style=“display:none;”
+
+<a-camera gps-new-camera="gpsMinDistance: 5; simulateLatitude: 0; simulateLongitude: 0"></a-camera>
+
+  <!-- ── Pagrindinis 3D objektas (bokštas) ── -->
+
+  <a-entity id="main-object">
+
+```
+<!-- Bokšto kūnas -->
+<a-cylinder
+  gps-new-entity-place="latitude: 0; longitude: 0"
+  id="tower-body"
+  color="#8B7355"
+  radius="2"
+  height="12"
+  position="0 6 0"
+  material="roughness: 0.9; metalness: 0.05"
+  animation__bob="property: position; to: 0 6.3 0; dur: 3000; dir: alternate; loop: true; easing: easeInOutSine"
+></a-cylinder>
+
+<!-- Bokšto viršus (merlonai) -->
+<a-box
+  gps-new-entity-place="latitude: 0; longitude: 0"
+  color="#6B5335"
+  width="4.5"
+  height="2"
+  depth="4.5"
+  position="0 13 0"
+  material="roughness: 0.9"
+></a-box>
+
+<!-- Vėliava -->
+<a-box
+  gps-new-entity-place="latitude: 0; longitude: 0"
+  color="#8B0000"
+  width="2"
+  height="1.2"
+  depth="0.05"
+  position="1 16.5 0"
+  animation__wave="property: rotation; from: 0 0 -5; to: 0 0 5; dur: 800; dir: alternate; loop: true; easing: easeInOutSine"
+></a-box>
+
+<!-- Vėliavos stiebas -->
+<a-cylinder
+  gps-new-entity-place="latitude: 0; longitude: 0"
+  color="#D4AF37"
+  radius="0.08"
+  height="4"
+  position="0 16 0"
+></a-cylinder>
+
+<!-- Žėrintis aurainis efektas -->
+<a-sphere
+  gps-new-entity-place="latitude: 0; longitude: 0"
+  color="#c9a96e"
+  radius="3"
+  position="0 6 0"
+  material="transparent: true; opacity: 0.07; side: back"
+  animation__pulse="property: scale; from: 1 1 1; to: 1.08 1.08 1.08; dur: 2000; dir: alternate; loop: true; easing: easeInOutSine"
+></a-sphere>
+
+<!-- Žemės platforma -->
+<a-cylinder
+  gps-new-entity-place="latitude: 0; longitude: 0"
+  color="#5C4A2A"
+  radius="3.5"
+  height="0.3"
+  position="0 0.15 0"
+  material="roughness: 1"
+></a-cylinder>
+
+<!-- Etiketė su pavadinimu -->
+<a-text
+  gps-new-entity-place="latitude: 0; longitude: 0"
+  value="Gedimino Pilies Bokštas\nXIV a."
+  align="center"
+  color="#FFD700"
+  width="12"
+  position="0 20 0"
+  look-at="[gps-new-camera]"
+  animation__float="property: position; from: 0 20 0; to: 0 21 0; dur: 2500; dir: alternate; loop: true; easing: easeInOutSine"
+></a-text>
+
+<!-- Spinduliuojantys žiedai (efektas apačioje) -->
+<a-torus
+  gps-new-entity-place="latitude: 0; longitude: 0"
+  color="#c9a96e"
+  radius="4"
+  radius-tubular="0.04"
+  position="0 0.5 0"
+  rotation="90 0 0"
+  material="transparent: true; opacity: 0.5"
+  animation__spin="property: rotation; from: 90 0 0; to: 90 360 0; dur: 6000; loop: true; easing: linear"
+></a-torus>
+
+<a-torus
+  gps-new-entity-place="latitude: 0; longitude: 0"
+  color="#4caf84"
+  radius="6"
+  radius-tubular="0.03"
+  position="0 0.3 0"
+  rotation="90 0 0"
+  material="transparent: true; opacity: 0.3"
+  animation__spin="property: rotation; from: 90 0 0; to: 90 -360 0; dur: 9000; loop: true; easing: linear"
+></a-torus>
+```
+
+  </a-entity>
+
+</a-scene>
+
+<!-- ════════════════════════════════════════
+     JAVASCRIPT LOGIKA
+════════════════════════════════════════ -->
+
+<script>
+/* ── Konfigūracija: čia įrašykite savo vietų sąrašą ── */
+const LOCATIONS = [
+  {
+    id: 'gediminas',
+    name: 'Gedimino Pilies Bokštas',
+    lat: 54.6868,    // <-- Pakeisk į savo koordinates
+    lon: 25.2895,    // <-- Pakeisk į savo koordinates
+    description: 'XIV a. pilies gynybinis bokštas – seniausias išlikęs Vilniaus gynybinės sienos fragmentas.',
+    era: 'XIV amžius',
+    height: '~20 m aukščio',
+    badge: 'UNESCO zona',
+  }
+];
+
+let userLat = null, userLon = null;
+let watchId = null;
+let arLaunched = false;
+
+/* ── Pagalbiniai elementai ── */
+const $ = id => document.getElementById(id);
+
+/* ── 1. Pradėti programą ── */
+function startApp() {
+  $('splash').classList.add('hidden');
+  setTimeout(() => {
+    $('splash').style.display = 'none';
+    $('coord-screen').classList.add('active');
+  }, 800);
+}
+
+/* ── 2. Naudoti dabartinę vietą ── */
+function useMyLocation() {
+  if (!navigator.geolocation) { showError('Naršyklė nepalaiko GPS.'); return; }
+
+  navigator.geolocation.getCurrentPosition(
+    pos => {
+      $('inp-lat').value = pos.coords.latitude.toFixed(6);
+      $('inp-lon').value = pos.coords.longitude.toFixed(6);
+    },
+    err => showError('Nepavyko gauti vietos: ' + err.message)
+  );
+}
+
+/* ── 3. Paleisti AR sceną ── */
+function launchAR() {
+  const lat = parseFloat($('inp-lat').value);
+  const lon = parseFloat($('inp-lon').value);
+
+  if (isNaN(lat) || isNaN(lon)) {
+    showError('Įveskite galiojančias koordinates arba naudok "Mano vieta".');
+    return;
+  }
+
+  // Išsaugoti tikslines koordinates
+  LOCATIONS[0].lat = lat;
+  LOCATIONS[0].lon = lon;
+
+  // Paslėpti nustatymų ekraną
+  $('coord-screen').classList.remove('active');
+
+  // Rodyti A-Frame sceną
+  const scene = $('ar-scene');
+  scene.style.display = 'block';
+
+  // Įdėti koordinates į A-Frame entityus
+  setEntityCoords(lat, lon);
+
+  // Rodyti HUD ir UI
+  $('hud').classList.add('active');
+  $('distance-indicator').classList.add('active');
+  setTimeout(() => $('info-card').classList.add('visible'), 1500);
+
+  // Pradėti GPS stebėjimą
+  startGPSTracking();
+  arLaunched = true;
+}
+
+/* ── 4. Nustatyti A-Frame entity koordinates ── */
+function setEntityCoords(lat, lon) {
+  const attrValue = `latitude: ${lat}; longitude: ${lon}`;
+
+  // Surasti visus gps-new-entity-place elementus
+  document.querySelectorAll('[gps-new-entity-place]').forEach(el => {
+    el.setAttribute('gps-new-entity-place', attrValue);
+  });
+
+  // Kamerai – įdėti vartotojo poziciją (simuliacija jei reikia)
+  const cam = document.querySelector('[gps-new-camera]');
+  if (cam) {
+    cam.setAttribute('gps-new-camera',
+      `gpsMinDistance: 5; simulateLatitude: ${lat - 0.0001}; simulateLongitude: ${lon}`);
+  }
+}
+
+/* ── 5. GPS stebėjimas ── */
+function startGPSTracking() {
+  if (!navigator.geolocation) return;
+
+  watchId = navigator.geolocation.watchPosition(
+    pos => {
+      userLat = pos.coords.latitude;
+      userLon = pos.coords.longitude;
+      updateGPSStatus(true);
+      updateDistance();
+    },
+    err => {
+      updateGPSStatus(false);
+      console.warn('GPS klaida:', err);
+    },
+    { enableHighAccuracy: true, maximumAge: 5000, timeout: 10000 }
+  );
+}
+
+/* ── 6. Atnaujinti GPS statuso indikatorių ── */
+function updateGPSStatus(ok) {
+  const dot   = $('gps-dot');
+  const label = $('gps-label');
+  if (ok) {
+    dot.classList.add('active');
+    label.textContent = `GPS aktyvus · ${userLat?.toFixed(4)}, ${userLon?.toFixed(4)}`;
+  } else {
+    dot.classList.remove('active');
+    label.textContent = 'GPS klaida';
+  }
+}
+
+/* ── 7. Skaičiuoti atstumą (Haversine formulė) ── */
+function calcDistance(lat1, lon1, lat2, lon2) {
+  const R = 6371000; // Žemės spindulys metrais
+  const φ1 = lat1 * Math.PI / 180;
+  const φ2 = lat2 * Math.PI / 180;
+  const Δφ = (lat2 - lat1) * Math.PI / 180;
+  const Δλ = (lon2 - lon1) * Math.PI / 180;
+  const a  = Math.sin(Δφ/2)**2 + Math.cos(φ1)*Math.cos(φ2)*Math.sin(Δλ/2)**2;
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+}
+
+/* ── 8. Atnaujinti atstumo juostą ── */
+function updateDistance() {
+  if (userLat === null) return;
+  const loc  = LOCATIONS[0];
+  const dist = calcDistance(userLat, userLon, loc.lat, loc.lon);
+  const maxDist = 200; // metrai, kai objektas tampa matomas
+  const pct  = Math.max(0, Math.min(100, (1 - dist / maxDist) * 100));
+
+  $('dist-fill').style.width  = pct + '%';
+  $('dist-label').textContent = dist < 1000
+    ? `Atstumas iki objekto: ${Math.round(dist)} m`
+    : `Atstumas: ${(dist/1000).toFixed(1)} km`;
+
+  // Pakeisti objekto matomumą pagal atstumą
+  if (dist < 5)   $('info-card').classList.add('visible');
+}
+
+/* ── 9. Klaidos rodymas ── */
+function showError(msg) {
+  const el = $('error-msg');
+  el.textContent = '⚠️ ' + msg;
+  el.classList.add('visible');
+  setTimeout(() => el.classList.remove('visible'), 5000);
+}
+
+/* ── 10. A-Frame scenos paruošimas ── */
+document.addEventListener('DOMContentLoaded', () => {
+  const scene = $('ar-scene');
+  scene.addEventListener('loaded', () => console.log('A-Frame scena įkelta.'));
+  scene.addEventListener('camera-error', () => showError('Nepavyko pasiekti kameros.'));
+});
+
+/* ── Valymas kai lapas uždaromas ── */
+window.addEventListener('beforeunload', () => {
+  if (watchId !== null) navigator.geolocation.clearWatch(watchId);
+});
+</script>
+
+</body>
+</html>

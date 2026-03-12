@@ -2,294 +2,1047 @@
 
 <html lang="lt">
 <head>
-  <meta charset="UTF-8"/>
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no"/>
-  <meta name="mobile-web-app-capable" content="yes"/>
-  <meta name="apple-mobile-web-app-capable" content="yes"/>
-  <title>Virtualus Gidas AR</title>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1,user-scalable=no"/>
+<meta name="apple-mobile-web-app-capable" content="yes"/>
+<title>Laiko Gidas</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,700;1,400&family=DM+Mono:wght@300;400&display=swap" rel="stylesheet"/>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 
-  <script src="https://aframe.io/releases/1.4.0/aframe.min.js"></script>
+<style>
+:root{
+  --ink:#1a140d;
+  --paper:#f5efe3;
+  --sepia:#8b6914;
+  --rust:#a03020;
+  --moss:#3d5a3e;
+  --cream:#fdf8ed;
+  --shadow:rgba(26,20,13,0.18);
+}
 
-  <script src="https://raw.githack.com/AR-js-org/AR.js/master/aframe/build/aframe-ar.js"></script>
+*{margin:0;padding:0;box-sizing:border-box;}
 
-  <style>
-    * { margin:0; padding:0; box-sizing:border-box; }
-    body { font-family:'Georgia',serif; background:#000; color:#e8dcc8; overflow:hidden; }
+body{
+  font-family:'DM Mono',monospace;
+  background:var(--ink);
+  color:var(--paper);
+  height:100dvh;
+  overflow:hidden;
+  user-select:none;
+}
 
-    a-scene {
-      position:fixed !important;
-      top:0 !important; left:0 !important;
-      width:100% !important; height:100% !important;
-      z-index:1;
-    }
+/* ─── GRAIN OVERLAY ─── */
+body::before{
+  content:'';position:fixed;inset:0;z-index:9999;pointer-events:none;
+  background-image:url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.04'/%3E%3C/svg%3E");
+  opacity:0.35;
+}
 
-    .overlay {
-      position:fixed; inset:0; z-index:100;
-      display:flex; flex-direction:column;
-      align-items:center; justify-content:center;
-      padding:2rem;
-      background:linear-gradient(160deg,rgba(10,15,20,0.97),rgba(15,8,3,0.97));
-      transition:opacity 0.6s ease;
-    }
-    .overlay.hidden { opacity:0; pointer-events:none; }
+/* ─── SCREENS ─── */
+.screen{
+  position:fixed;inset:0;
+  display:flex;flex-direction:column;
+  transition:opacity .5s ease, transform .5s ease;
+}
+.screen.off{opacity:0;pointer-events:none;transform:translateY(12px);}
 
-    .emblem {
-      width:80px; height:80px;
-      border:2px solid #c9a96e; border-radius:50%;
-      display:flex; align-items:center; justify-content:center;
-      margin-bottom:1.5rem;
-      animation:pulseRing 2.5s ease-in-out infinite;
-    }
-    .emblem svg { width:38px; height:38px; fill:#c9a96e; }
-    @keyframes pulseRing {
-      0%,100%{box-shadow:0 0 0 0 rgba(201,169,110,0.4)}
-      50%{box-shadow:0 0 0 14px rgba(201,169,110,0)}
-    }
+/* ══════════════════════════════
+   SCREEN 1 – SPLASH / ROUTE PICK
+══════════════════════════════ */
+#s-splash{
+  background:linear-gradient(170deg,#1a140d 0%,#2c1f0e 50%,#1a1408 100%);
+  align-items:center;justify-content:center;padding:2rem;
+}
 
-    h1 { font-size:1.8rem; font-weight:400; letter-spacing:0.1em; margin-bottom:0.3rem; }
-    .sub { font-size:0.72rem; letter-spacing:0.3em; text-transform:uppercase; color:#c9a96e; margin-bottom:2rem; }
-    .desc { max-width:300px; text-align:center; font-size:0.9rem; line-height:1.7; color:#a89880; margin-bottom:1.5rem; }
+.logo-wrap{margin-bottom:2.5rem;text-align:center;}
+.logo-compass{
+  width:72px;height:72px;border:1.5px solid var(--sepia);border-radius:50%;
+  margin:0 auto 1.2rem;position:relative;
+  display:flex;align-items:center;justify-content:center;
+  animation:spin 20s linear infinite;
+}
+.logo-compass::before{
+  content:'';position:absolute;inset:-7px;
+  border:1px dashed rgba(139,105,20,0.3);border-radius:50%;
+}
+.logo-compass svg{width:36px;height:36px;}
+@keyframes spin{to{transform:rotate(360deg);}}
 
-    .notice {
-      background:rgba(201,169,110,0.08);
-      border:1px solid rgba(201,169,110,0.25);
-      border-radius:8px; padding:0.9rem 1.1rem;
-      max-width:300px; width:100%;
-      font-size:0.78rem; line-height:1.6; color:#a89880; margin-bottom:2rem;
-    }
-    .notice strong { color:#c9a96e; }
+.logo-title{
+  font-family:'Playfair Display',serif;
+  font-size:2.4rem;font-weight:400;letter-spacing:0.04em;
+  color:var(--paper);line-height:1;margin-bottom:0.3rem;
+}
+.logo-sub{
+  font-size:0.62rem;letter-spacing:0.35em;text-transform:uppercase;
+  color:var(--sepia);
+}
 
-    .coord-title { font-size:1.1rem; color:#c9a96e; margin-bottom:0.4rem; }
-    .coord-hint  { font-size:0.8rem; color:#a89880; text-align:center; margin-bottom:1.5rem; line-height:1.6; }
+.divider{
+  width:140px;height:1px;
+  background:linear-gradient(90deg,transparent,var(--sepia),transparent);
+  margin:1.8rem auto;
+}
 
-    .coord-box {
-      background:rgba(201,169,110,0.06);
-      border:1px solid rgba(201,169,110,0.22);
-      border-radius:10px; padding:1.3rem;
-      width:100%; max-width:320px; margin-bottom:1.2rem;
-    }
-    .coord-row { display:flex; flex-direction:column; margin-bottom:1rem; }
-    .coord-row:last-child { margin-bottom:0; }
-    .coord-row label { font-size:0.68rem; letter-spacing:0.2em; text-transform:uppercase; color:#c9a96e; margin-bottom:0.35rem; }
-    .coord-row input {
-      background:rgba(255,255,255,0.05);
-      border:1px solid rgba(201,169,110,0.28);
-      border-radius:6px; color:#e8dcc8;
-      font-family:'Courier New',monospace; font-size:1rem;
-      padding:0.6rem 0.8rem; outline:none; transition:border-color 0.2s;
-    }
-    .coord-row input:focus { border-color:#c9a96e; }
+.route-label{
+  font-size:0.6rem;letter-spacing:0.25em;text-transform:uppercase;
+  color:var(--sepia);margin-bottom:1rem;text-align:center;
+}
 
-    .btn-group { display:flex; gap:0.7rem; width:100%; max-width:320px; }
-    .btn-sec {
-      flex:1; background:transparent;
-      border:1px solid rgba(201,169,110,0.35); color:#c9a96e;
-      padding:0.75rem; font-size:0.75rem; letter-spacing:0.15em;
-      text-transform:uppercase; border-radius:4px;
-      cursor:pointer; font-family:inherit; transition:background 0.2s;
-    }
-    .btn-sec:hover { background:rgba(201,169,110,0.1); }
-    .btn-pri {
-      flex:2; background:linear-gradient(135deg,#c9a96e,#a07840);
-      border:none; color:#0a0a0a;
-      padding:0.75rem; font-size:0.75rem; letter-spacing:0.15em;
-      text-transform:uppercase; border-radius:4px;
-      cursor:pointer; font-family:inherit; font-weight:700; transition:opacity 0.2s;
-    }
-    .btn-pri:hover { opacity:0.85; }
-    .btn-pri:disabled { opacity:0.45; cursor:default; }
+.route-card{
+  width:100%;max-width:340px;
+  background:rgba(245,239,227,0.05);
+  border:1px solid rgba(139,105,20,0.3);
+  border-radius:10px;padding:1rem 1.2rem;
+  margin-bottom:0.75rem;cursor:pointer;
+  transition:all .2s ease;position:relative;overflow:hidden;
+}
+.route-card::before{
+  content:'';position:absolute;left:0;top:0;bottom:0;width:3px;
+  background:var(--sepia);transform:scaleY(0);transition:transform .2s;
+  transform-origin:bottom;
+}
+.route-card:hover::before,.route-card.selected::before{transform:scaleY(1);}
+.route-card.selected{
+  background:rgba(139,105,20,0.12);
+  border-color:rgba(139,105,20,0.6);
+}
+.route-card-name{
+  font-family:'Playfair Display',serif;font-size:1rem;
+  margin-bottom:0.25rem;
+}
+.route-card-meta{
+  font-size:0.65rem;color:rgba(245,239,227,0.5);
+  display:flex;gap:1rem;
+}
 
-    #hud { position:fixed; top:0; left:0; right:0; z-index:200; padding:0.8rem; pointer-events:none; display:none; }
-    #hud.active { display:block; }
-    .hud-bar {
-      background:rgba(10,15,20,0.85);
-      border:1px solid rgba(201,169,110,0.3);
-      border-radius:10px; padding:0.65rem 1rem;
-      display:flex; align-items:center; justify-content:space-between;
-      backdrop-filter:blur(8px);
-    }
-    .hud-title { font-size:0.82rem; letter-spacing:0.05em; }
-    .hud-gps   { font-size:0.68rem; color:#a89880; display:flex; align-items:center; gap:0.35rem; }
-    .dot { width:7px; height:7px; border-radius:50%; background:#555; }
-    .dot.ok { background:#4caf84; animation:blink 1.8s ease-in-out infinite; }
-    @keyframes blink { 0%,100%{opacity:1} 50%{opacity:0.3} }
+.btn-start{
+  margin-top:1.5rem;
+  background:linear-gradient(135deg,#8b6914,#5c440d);
+  border:none;color:var(--paper);
+  padding:0.9rem 3rem;font-size:0.72rem;letter-spacing:0.25em;
+  text-transform:uppercase;border-radius:4px;cursor:pointer;
+  font-family:inherit;transition:all .2s;
+  box-shadow:0 4px 20px rgba(139,105,20,0.35);
+}
+.btn-start:hover{transform:translateY(-2px);box-shadow:0 8px 28px rgba(139,105,20,0.45);}
 
-    #card {
-      position:fixed; bottom:1.2rem; left:1rem; right:1rem; z-index:200;
-      background:rgba(10,15,20,0.9);
-      border:1px solid rgba(201,169,110,0.3);
-      border-radius:12px; padding:1.1rem 1.2rem;
-      backdrop-filter:blur(12px);
-      display:none; animation:slideUp 0.4s ease;
-    }
-    #card.show { display:block; }
-    @keyframes slideUp { from{transform:translateY(18px);opacity:0} to{transform:translateY(0);opacity:1} }
-    .card-tag  { font-size:0.6rem; letter-spacing:0.22em; text-transform:uppercase; color:#c9a96e; margin-bottom:0.35rem; }
-    .card-name { font-size:1.1rem; margin-bottom:0.45rem; }
-    .card-body { font-size:0.8rem; line-height:1.65; color:#a89880; margin-bottom:0.85rem; }
-    .card-meta { font-size:0.68rem; color:#7a6e62; border-top:1px solid rgba(201,169,110,0.15); padding-top:0.65rem; display:flex; gap:1rem; }
+/* ══════════════════════════════
+   SCREEN 2 – MAP
+══════════════════════════════ */
+#s-map{background:#1a140d;}
 
-    #err {
-      position:fixed; top:4.5rem; left:1rem; right:1rem; z-index:300;
-      background:rgba(160,40,30,0.93);
-      border:1px solid rgba(255,80,60,0.4);
-      border-radius:8px; padding:0.85rem 1rem;
-      font-size:0.8rem; line-height:1.5; color:#ffe0da; display:none;
-    }
-    #err.show { display:block; }
-  </style>
+#map{flex:1;position:relative;}
+
+/* Leaflet overrides */
+.leaflet-tile-pane{filter:sepia(0.6) brightness(0.85) contrast(1.1);}
+.leaflet-control-zoom{border:1px solid rgba(139,105,20,0.4)!important;border-radius:6px!important;}
+.leaflet-control-zoom a{
+  background:rgba(26,20,13,0.9)!important;color:var(--sepia)!important;
+  border-color:rgba(139,105,20,0.3)!important;
+}
+
+/* Map bottom bar */
+.map-bottom{
+  padding:0.8rem 1rem 1rem;
+  background:linear-gradient(0deg,rgba(26,20,13,1) 70%,transparent);
+  position:absolute;bottom:0;left:0;right:0;z-index:500;
+}
+
+.next-poi-bar{
+  background:rgba(26,20,13,0.9);
+  border:1px solid rgba(139,105,20,0.3);
+  border-radius:10px;padding:0.75rem 1rem;
+  display:flex;align-items:center;gap:0.9rem;
+  backdrop-filter:blur(8px);
+}
+.poi-icon{
+  width:38px;height:38px;border-radius:50%;
+  background:rgba(139,105,20,0.15);border:1px solid rgba(139,105,20,0.4);
+  display:flex;align-items:center;justify-content:center;
+  font-size:1.2rem;flex-shrink:0;
+}
+.poi-info{flex:1;}
+.poi-next-label{font-size:0.58rem;letter-spacing:0.2em;text-transform:uppercase;color:var(--sepia);margin-bottom:0.2rem;}
+.poi-next-name{font-family:'Playfair Display',serif;font-size:0.95rem;line-height:1.2;}
+.poi-dist{
+  font-size:0.72rem;color:rgba(245,239,227,0.5);
+  font-family:'DM Mono',monospace;text-align:right;min-width:52px;
+}
+
+/* Map top bar */
+.map-top{
+  position:absolute;top:0;left:0;right:0;z-index:500;
+  padding:0.8rem 1rem;
+  background:linear-gradient(180deg,rgba(26,20,13,0.95) 60%,transparent);
+}
+.map-header{
+  display:flex;align-items:center;justify-content:space-between;
+}
+.map-title{font-family:'Playfair Display',serif;font-size:1rem;letter-spacing:0.03em;}
+.map-gps{
+  display:flex;align-items:center;gap:0.35rem;
+  font-size:0.62rem;color:rgba(245,239,227,0.45);
+}
+.gps-dot{
+  width:6px;height:6px;border-radius:50%;background:#555;
+  transition:background .4s;
+}
+.gps-dot.live{background:#4caf84;animation:blink 1.8s ease-in-out infinite;}
+@keyframes blink{0%,100%{opacity:1}50%{opacity:0.25}}
+
+/* Progress dots */
+.progress-row{
+  display:flex;align-items:center;gap:0;
+  margin-top:0.6rem;
+}
+.prog-dot{
+  width:8px;height:8px;border-radius:50%;
+  background:rgba(139,105,20,0.25);border:1px solid rgba(139,105,20,0.3);
+  transition:all .4s;flex-shrink:0;
+}
+.prog-dot.done{background:var(--sepia);}
+.prog-dot.active{background:var(--paper);box-shadow:0 0 6px rgba(245,239,227,0.6);}
+.prog-line{flex:1;height:1px;background:rgba(139,105,20,0.2);}
+.prog-line.done{background:var(--sepia);}
+
+/* ── PROXIMITY ALERT (bottom sheet) ── */
+#proximity-alert{
+  position:absolute;bottom:-200px;left:0.8rem;right:0.8rem;z-index:600;
+  background:linear-gradient(135deg,rgba(26,20,13,0.97),rgba(40,28,12,0.97));
+  border:1px solid rgba(139,105,20,0.5);border-radius:14px;
+  padding:1.1rem 1.2rem;
+  backdrop-filter:blur(16px);
+  transition:bottom .5s cubic-bezier(.34,1.56,.64,1);
+}
+#proximity-alert.show{bottom:6rem;}
+.alert-pulse{
+  display:flex;align-items:center;gap:0.5rem;
+  font-size:0.6rem;letter-spacing:0.22em;text-transform:uppercase;
+  color:#c9a96e;margin-bottom:0.5rem;
+}
+.pulse-ring{
+  width:10px;height:10px;border-radius:50%;background:#c9a96e;
+  animation:pulseAnim 1.2s ease-in-out infinite;
+}
+@keyframes pulseAnim{
+  0%,100%{box-shadow:0 0 0 0 rgba(201,169,110,0.6);}
+  50%{box-shadow:0 0 0 8px rgba(201,169,110,0);}
+}
+.alert-name{font-family:'Playfair Display',serif;font-size:1.2rem;margin-bottom:0.35rem;}
+.alert-teaser{font-size:0.75rem;color:rgba(245,239,227,0.55);line-height:1.5;margin-bottom:1rem;}
+.btn-discover{
+  width:100%;background:linear-gradient(135deg,#8b6914,#a03020);
+  border:none;color:var(--paper);padding:0.8rem;
+  font-size:0.72rem;letter-spacing:0.2em;text-transform:uppercase;
+  border-radius:6px;cursor:pointer;font-family:inherit;font-weight:400;
+  transition:opacity .2s;
+}
+.btn-discover:hover{opacity:0.88;}
+
+/* ══════════════════════════════
+   SCREEN 3 – DISCOVERY (Camera + Overlay)
+══════════════════════════════ */
+#s-discovery{background:#000;justify-content:flex-start;}
+
+#cam-feed{
+  position:absolute;inset:0;
+  width:100%;height:100%;object-fit:cover;
+  transform:scaleX(-1);/* mirror front cam if back not avail */
+}
+
+/* Historical overlay effect */
+#hist-overlay{
+  position:absolute;inset:0;
+  background:rgba(26,20,13,0.0);
+  transition:background 1.2s ease;
+  pointer-events:none;
+}
+#hist-overlay.active{
+  background:linear-gradient(
+    180deg,
+    rgba(26,20,13,0.15) 0%,
+    rgba(26,20,13,0.0) 40%,
+    rgba(26,20,13,0.55) 100%
+  );
+}
+
+/* Sepia vignette when "time travelling" */
+#time-vignette{
+  position:absolute;inset:0;pointer-events:none;
+  background:radial-gradient(ellipse at center,transparent 30%,rgba(139,90,20,0.6) 100%);
+  opacity:0;transition:opacity 1s ease;
+  mix-blend-mode:multiply;
+}
+#time-vignette.active{opacity:1;}
+
+/* Scan line effect */
+#scanlines{
+  position:absolute;inset:0;pointer-events:none;opacity:0;
+  background:repeating-linear-gradient(
+    0deg,transparent,transparent 2px,rgba(0,0,0,0.06) 2px,rgba(0,0,0,0.06) 4px
+  );
+  transition:opacity .8s;
+}
+#scanlines.active{opacity:1;}
+
+/* Year stamp */
+#year-stamp{
+  position:absolute;top:0;left:0;right:0;
+  display:flex;justify-content:center;padding-top:3.5rem;
+  opacity:0;transform:scale(1.3);
+  transition:opacity .8s ease, transform .8s ease;
+  pointer-events:none;
+}
+#year-stamp.show{opacity:1;transform:scale(1);}
+.year-text{
+  font-family:'Playfair Display',serif;font-style:italic;
+  font-size:4.5rem;font-weight:400;
+  color:rgba(245,239,227,0.18);letter-spacing:0.05em;
+  text-shadow:0 2px 12px rgba(0,0,0,0.5);
+}
+
+/* Discovery top bar */
+.disc-top{
+  position:absolute;top:0;left:0;right:0;z-index:10;
+  padding:1rem;
+  background:linear-gradient(180deg,rgba(26,20,13,0.85) 50%,transparent);
+}
+.disc-top-row{display:flex;align-items:center;gap:0.8rem;}
+.btn-back{
+  width:36px;height:36px;border-radius:50%;
+  background:rgba(26,20,13,0.7);border:1px solid rgba(139,105,20,0.3);
+  display:flex;align-items:center;justify-content:center;
+  cursor:pointer;flex-shrink:0;font-size:1rem;
+}
+.disc-poi-title{font-family:'Playfair Display',serif;font-size:1rem;}
+
+/* Info card at bottom */
+#disc-card{
+  position:absolute;bottom:0;left:0;right:0;z-index:10;
+  background:linear-gradient(0deg,rgba(20,14,7,0.98) 80%,transparent);
+  padding:1.5rem 1.2rem 2rem;
+  transform:translateY(100%);
+  transition:transform .6s cubic-bezier(.34,1.2,.64,1);
+}
+#disc-card.show{transform:translateY(0);}
+
+.disc-era{
+  font-size:0.6rem;letter-spacing:0.3em;text-transform:uppercase;
+  color:var(--sepia);margin-bottom:0.5rem;
+}
+.disc-name{
+  font-family:'Playfair Display',serif;font-size:1.5rem;
+  margin-bottom:0.8rem;line-height:1.2;
+}
+.disc-desc{
+  font-size:0.78rem;line-height:1.7;
+  color:rgba(245,239,227,0.65);margin-bottom:1.1rem;
+}
+.disc-facts{
+  display:flex;gap:0.6rem;flex-wrap:wrap;margin-bottom:1.2rem;
+}
+.disc-fact{
+  background:rgba(139,105,20,0.12);
+  border:1px solid rgba(139,105,20,0.25);
+  border-radius:99px;padding:0.3rem 0.7rem;
+  font-size:0.64rem;color:rgba(245,239,227,0.6);
+}
+.btn-mark-done{
+  width:100%;
+  background:rgba(139,105,20,0.15);
+  border:1px solid rgba(139,105,20,0.35);
+  color:var(--sepia);padding:0.75rem;
+  font-size:0.7rem;letter-spacing:0.2em;text-transform:uppercase;
+  border-radius:6px;cursor:pointer;font-family:inherit;
+  transition:all .2s;
+}
+.btn-mark-done:hover{background:rgba(139,105,20,0.25);}
+
+/* Loading state for camera */
+#cam-loading{
+  position:absolute;inset:0;z-index:5;
+  background:#100c07;
+  display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1rem;
+}
+.cam-spinner{
+  width:42px;height:42px;border:1.5px solid rgba(139,105,20,0.2);
+  border-top-color:var(--sepia);border-radius:50%;
+  animation:spin .9s linear infinite;
+}
+.cam-load-txt{font-size:0.65rem;letter-spacing:0.2em;text-transform:uppercase;color:rgba(245,239,227,0.35);}
+
+/* ─── DEMO MODE BANNER ─── */
+#demo-banner{
+  position:absolute;top:70px;left:50%;transform:translateX(-50%);
+  z-index:600;
+  background:rgba(160,48,32,0.9);border:1px solid rgba(255,100,80,0.3);
+  border-radius:6px;padding:0.4rem 0.8rem;
+  font-size:0.62rem;letter-spacing:0.12em;text-transform:uppercase;color:#ffd0c8;
+  white-space:nowrap;display:none;
+}
+#demo-banner.show{display:block;}
+
+/* ─── TOAST ─── */
+#toast{
+  position:fixed;bottom:7rem;left:50%;transform:translateX(-50%) translateY(10px);
+  z-index:1000;background:rgba(26,20,13,0.95);
+  border:1px solid rgba(139,105,20,0.35);border-radius:8px;
+  padding:0.6rem 1.2rem;font-size:0.72rem;
+  color:rgba(245,239,227,0.8);white-space:nowrap;
+  opacity:0;transition:all .3s;pointer-events:none;
+}
+#toast.show{opacity:1;transform:translateX(-50%) translateY(0);}
+</style>
 
 </head>
 <body>
 
-<a-scene
-id=“scene”
-arjs=“sourceType: webcam; videoTexture: true; debugUIEnabled: false;”
-vr-mode-ui=“enabled: false”
-renderer=“antialias: true; alpha: true; logarithmicDepthBuffer: true;”
-embedded
+<!-- ═══════════════════════
+     S1 – SPLASH
+═══════════════════════ -->
 
-<a-camera id="cam" gps-new-camera="gpsMinDistance: 3; positionMinAccuracy: 100"></a-camera>
+<div class="screen" id="s-splash">
 
-  <a-entity id="ar-obj" visible="false">
-    <a-cylinder color="#8B7355" radius="2" height="12" position="0 6 0"
-      material="roughness: 0.9"
-      animation__bob="property: position; to: 0 6.4 0; dur: 3000; dir: alternate; loop: true; easing: easeInOutSine">
-    </a-cylinder>
-    <a-box color="#6B5335" width="4.6" height="2" depth="4.6" position="0 13 0" material="roughness: 0.9"></a-box>
-    <a-cylinder color="#D4AF37" radius="0.08" height="4" position="0 16 0"></a-cylinder>
-    <a-box color="#8B0000" width="2" height="1.2" depth="0.06" position="1 16.5 0"
-      animation__wave="property: rotation; from: 0 0 -6; to: 0 0 6; dur: 800; dir: alternate; loop: true; easing: easeInOutSine">
-    </a-box>
-    <a-cylinder color="#5C4A2A" radius="3.8" height="0.3" position="0 0.15 0" material="roughness: 1"></a-cylinder>
-    <a-torus color="#c9a96e" radius="4.5" radius-tubular="0.05" position="0 0.4 0"
-      rotation="90 0 0" material="transparent: true; opacity: 0.55"
-      animation__spin="property: rotation; from: 90 0 0; to: 90 360 0; dur: 5000; loop: true; easing: linear">
-    </a-torus>
-    <a-text value="Gedimino Pilies Bokštas" align="center" color="#FFD700"
-      width="14" position="0 20 0" look-at="[gps-new-camera]"
-      animation__float="property: position; from: 0 20 0; to: 0 21.2 0; dur: 2500; dir: alternate; loop: true; easing: easeInOutSine">
-    </a-text>
-  </a-entity>
-</a-scene>
-
-<div class="overlay" id="splash">
-  <div class="emblem">
-    <svg viewBox="0 0 24 24"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z"/></svg>
-  </div>
-  <h1>Virtualus Gidas</h1>
-  <p class="sub">WebAR · Location Based</p>
-  <p class="desc">3D objektai atsiranda tiksliai ten, kur nurodytos GPS koordinatės.</p>
-  <div class="notice">
-    <strong>Prieš pradedant:</strong><br>
-    Naršyklė paprašys leidimų naudoti <strong>kamerą</strong> ir <strong>GPS</strong>.
-    Būtina sutikti su abiem – be jų AR neveiks.
-  </div>
-  <button class="btn-pri" style="padding:0.95rem 2.8rem;font-size:0.85rem;" onclick="goCoords()">Pradėti →</button>
-</div>
-
-<div class="overlay hidden" id="coords">
-  <p class="coord-title">📍 Objekto vieta</p>
-  <p class="coord-hint">Įveskite koordinates kur atsiras 3D objektas,<br>arba naudok savo dabartinę vietą.</p>
-  <div class="coord-box">
-    <div class="coord-row">
-      <label>Platuma (Latitude)</label>
-      <input id="lat" type="number" step="0.000001" placeholder="54.686800"/>
+  <div class="logo-wrap">
+    <div class="logo-compass">
+      <svg viewBox="0 0 24 24" fill="none" stroke="#8b6914" stroke-width="1.2">
+        <circle cx="12" cy="12" r="10"/>
+        <polygon points="12,4 13.5,10 12,12 10.5,10" fill="#8b6914"/>
+        <polygon points="12,20 10.5,14 12,12 13.5,14" fill="rgba(139,105,20,0.4)"/>
+        <line x1="4" y1="12" x2="20" y2="12" stroke-width="0.6" stroke-dasharray="1,2"/>
+      </svg>
     </div>
-    <div class="coord-row">
-      <label>Ilguma (Longitude)</label>
-      <input id="lon" type="number" step="0.000001" placeholder="25.279600"/>
+    <div class="logo-title">Laiko Gidas</div>
+    <div class="logo-sub">Istorinis maršrutų kelionė</div>
+  </div>
+
+  <div class="divider"></div>
+
+  <div class="route-label">Pasirink maršrutą</div>
+
+  <div class="route-card selected" onclick="selectRoute(0,this)">
+    <div class="route-card-name">Vilniaus Senamiestis</div>
+    <div class="route-card-meta">
+      <span>🗺 4 stotelės</span>
+      <span>🚶 ~2.1 km</span>
+      <span>⏱ ~45 min</span>
     </div>
   </div>
-  <div class="btn-group">
-    <button class="btn-sec" onclick="useMyPos()">📍 Mano vieta</button>
-    <button class="btn-pri" id="launch-btn" onclick="launchAR()">Paleisti AR →</button>
+
+  <div class="route-card" onclick="selectRoute(1,this)">
+    <div class="route-card-name">Kauno Laisvės Alėja</div>
+    <div class="route-card-meta">
+      <span>🗺 3 stotelės</span>
+      <span>🚶 ~1.4 km</span>
+      <span>⏱ ~30 min</span>
+    </div>
+  </div>
+
+  <div class="route-card" onclick="selectRoute(2,this)">
+    <div class="route-card-name">Tavo maršrutas ✏️</div>
+    <div class="route-card-meta">
+      <span>🗺 Pridėk savo vietas</span>
+      <span>🛠 Redaguojamas</span>
+    </div>
+  </div>
+
+<button class="btn-start" onclick="startTour()">Pradėti kelionę →</button>
+
+</div>
+
+<!-- ═══════════════════════
+     S2 – MAP
+═══════════════════════ -->
+
+<div class="screen off" id="s-map" style="position:relative;">
+
+  <!-- Top bar -->
+
+  <div class="map-top">
+    <div class="map-header">
+      <div class="map-title" id="map-route-title">Vilniaus Senamiestis</div>
+      <div class="map-gps">
+        <div class="gps-dot" id="gps-dot"></div>
+        <span id="gps-label">GPS...</span>
+      </div>
+    </div>
+    <!-- Progress -->
+    <div class="progress-row" id="progress-row"></div>
+  </div>
+
+  <!-- Map container -->
+
+  <div id="map" style="position:absolute;inset:0;z-index:1;"></div>
+
+  <!-- Demo banner -->
+
+  <div id="demo-banner">⚡ Demo režimas – GPS simuliuojamas</div>
+
+  <!-- Next POI bar -->
+
+  <div class="map-bottom" style="z-index:500;">
+    <div class="next-poi-bar">
+      <div class="poi-icon" id="next-icon">📍</div>
+      <div class="poi-info">
+        <div class="poi-next-label">Kita stotelė</div>
+        <div class="poi-next-name" id="next-name">Kraunama...</div>
+      </div>
+      <div class="poi-dist" id="next-dist">—</div>
+    </div>
+  </div>
+
+  <!-- Proximity alert -->
+
+  <div id="proximity-alert">
+    <div class="alert-pulse">
+      <div class="pulse-ring"></div>
+      <span>Artėjate prie stotelės</span>
+    </div>
+    <div class="alert-name" id="alert-name">—</div>
+    <div class="alert-teaser" id="alert-teaser">—</div>
+    <button class="btn-discover" onclick="openDiscovery()">
+      🔍 Atverti istorinį vaizdą
+    </button>
   </div>
 </div>
 
-<div id="hud">
-  <div class="hud-bar">
-    <span class="hud-title">🏛 Virtualus Gidas</span>
-    <span class="hud-gps">
-      <span class="dot" id="dot"></span>
-      <span id="gps-txt">GPS laukiama...</span>
-    </span>
+<!-- ═══════════════════════
+     S3 – DISCOVERY
+═══════════════════════ -->
+
+<div class="screen off" id="s-discovery">
+
+  <!-- Camera feed -->
+
+<video id="cam-feed" autoplay playsinline muted></video>
+
+  <!-- Loading -->
+
+  <div id="cam-loading">
+    <div class="cam-spinner"></div>
+    <div class="cam-load-txt">Kamera jungiasi...</div>
   </div>
+
+  <!-- Effects -->
+
+  <div id="hist-overlay"></div>
+  <div id="time-vignette"></div>
+  <div id="scanlines"></div>
+
+  <!-- Year stamp -->
+
+  <div id="year-stamp"><div class="year-text" id="year-text">1850</div></div>
+
+  <!-- Top bar -->
+
+  <div class="disc-top">
+    <div class="disc-top-row">
+      <div class="btn-back" onclick="closeDiscovery()">←</div>
+      <div class="disc-poi-title" id="disc-title">—</div>
+    </div>
+  </div>
+
+  <!-- Info card -->
+
+  <div id="disc-card">
+    <div class="disc-era" id="disc-era">—</div>
+    <div class="disc-name" id="disc-name">—</div>
+    <div class="disc-desc" id="disc-desc">—</div>
+    <div class="disc-facts" id="disc-facts"></div>
+    <button class="btn-mark-done" onclick="markDone()">✓ Pažymėti kaip aplankyta ir grįžti</button>
+  </div>
+
 </div>
 
-<div id="err"></div>
+<!-- Toast -->
 
-<div id="card">
-  <div class="card-tag">📍 Istorinis objektas · Vilnius</div>
-  <div class="card-name">Gedimino Pilies Bokštas</div>
-  <div class="card-body">XIV a. gynybinis bokštas – seniausias išlikęs Vilniaus gynybinės sienos fragmentas ir Lietuvos valstybingumo simbolis.</div>
-  <div class="card-meta">
-    <span>🏛 XIV amžius</span><span>📏 ~20 m</span><span>🎖 UNESCO</span>
-  </div>
-</div>
+<div id="toast"></div>
+
+<!-- ═══════════════════════════════
+     JAVASCRIPT
+═══════════════════════════════ -->
 
 <script>
-  function show(id) { document.getElementById(id).classList.remove('hidden'); }
-  function hide(id) { document.getElementById(id).classList.add('hidden'); }
-  function $(id)    { return document.getElementById(id); }
-
-  function goCoords() { hide('splash'); show('coords'); }
-
-  function useMyPos() {
-    if (!navigator.geolocation) { showErr('GPS nepalaikomas.'); return; }
-    $('launch-btn').disabled = true;
-    $('launch-btn').textContent = 'Ieškoma...';
-    navigator.geolocation.getCurrentPosition(
-      pos => {
-        $('lat').value = pos.coords.latitude.toFixed(6);
-        $('lon').value = pos.coords.longitude.toFixed(6);
-        $('launch-btn').disabled = false;
-        $('launch-btn').textContent = 'Paleisti AR →';
+/* ═══════════════════════════════════════
+   DATA – Maršrutai ir POI
+═══════════════════════════════════════ */
+const ROUTES = [
+  {
+    id: 'vilnius',
+    name: 'Vilniaus Senamiestis',
+    center: [54.681, 25.285],
+    zoom: 15,
+    pois: [
+      {
+        id:'gediminas',
+        name:'Gedimino Pilies Bokštas',
+        lat:54.6868, lon:25.2895,
+        icon:'🏰', radius:40,
+        era:'XIV amžius · ~1323 m.',
+        year:'1323',
+        teaser:'Čia kilo Vilniaus miestas. Legendinis Gedimino sapnas lėmė sostinės vietą.',
+        desc:'Gedimino pilis buvo Lietuvos Didžiosios Kunigaikštystės širdis. Čia 1323 m. Gediminas pasirašė laiškus Europai, kviesdamas į naują sostinę amatininkus ir pirklius. Medinis bokštas vėliau virto akmeniniu gynybine fortu.',
+        facts:['Pastatyta ~1323','Aukštis 20 m','UNESCO zona','Kalnas 48 m virš Neries'],
       },
-      err => {
-        showErr('GPS klaida: ' + err.message);
-        $('launch-btn').disabled = false;
-        $('launch-btn').textContent = 'Paleisti AR →';
+      {
+        id:'katedra',
+        name:'Katedros Aikštė',
+        lat:54.6855, lon:25.2872,
+        icon:'⛪', radius:45,
+        era:'XIII–XIX amžiai · 1387 m.',
+        year:'1387',
+        teaser:'Seniausia Lietuvos krikščionių šventovė – krikšto simbolis.',
+        desc:'Vilniaus Katedra – Lietuvos krikšto vieta. 1387 m. Jogaila oficialiai pakrikštijo Lietuvą čia. Katedra buvo statyta, griauta ir atstatyta daugybę kartų – dabartinis neklasicistinis fasadas atsirado XIX a. pradžioje.',
+        facts:['Pastatyta 1387','Atstatyta 1801','11 koplyčių','Požeminiai valdovų kapai'],
       },
-      { enableHighAccuracy: true, timeout: 10000 }
-    );
+      {
+        id:'ausros',
+        name:'Aušros Vartai',
+        lat:54.6785, lon:25.2879,
+        icon:'🚪', radius:35,
+        era:'XVI amžius · ~1514 m.',
+        year:'1514',
+        teaser:'Vieninteliai išlikę miesto vartai – ryto saulės simbolis.',
+        desc:'Aušros Vartai – vieninteliai išlikę iš devynių viduramžių Vilniaus miesto vartų. 1514 m. pastatytas gynybinis įtvirtinimas. XIX a. virš vartų buvo įrengta koplyčia su stebuklingąja Marijos ikona, traukiančia piligrimus iš viso pasaulio.',
+        facts:['Pastatyta 1514','Aukštis 14 m','Vieninteliai išlikę','Stebuklingoji ikona'],
+      },
+      {
+        id:'rotuseaikste',
+        name:'Rotušės Aikštė',
+        lat:54.6813, lon:25.2850,
+        icon:'🏛', radius:40,
+        era:'XV–XIX amžiai · ~1432 m.',
+        year:'1432',
+        teaser:'Senasis miesto centras – pirklių, mugių ir viešųjų egzekucijų vieta.',
+        desc:'Vilniaus Rotušė buvo miesto savivaldos centras nuo XV a. Aikštėje vyko turgūs, mugės, ir, deja, viešos bausmės. Dabartinis neoklasikiniastas pastatas pastatytas 1799 m. pagal architekto Lauryno Stuokos-Gucevičiaus projektą.',
+        facts:['Pastatyta 1799','Arch. Stuoka-Gucevičius','Buvęs turgaus centras','Dabar – Dailės muziejus'],
+      }
+    ]
+  },
+  {
+    id:'kaunas',
+    name:'Kauno Laisvės Alėja',
+    center:[54.898, 23.904],
+    zoom:15,
+    pois:[
+      {
+        id:'soboras',
+        name:'Soboro Aikštė',
+        lat:54.8984, lon:23.9220,
+        icon:'🔔', radius:40,
+        era:'XIX–XX amžiai · 1893 m.',
+        year:'1893',
+        teaser:'Rusifikacijos simbolis, tapęs lietuvybės atraminiu tašku.',
+        desc:'Kauno Soboras buvo pastatytas rusų valdžios kaip stačiatikybės įtvirtinimo ženklas. 1918 m. jis tapo evangelikų-reformatų bažnyčia, o sovietmečiu – dailės galerija. Dabar vėl veikia kaip stačiatikių šventovė.',
+        facts:['Pastatyta 1893','Rusų imperija','Keitė funkciją 3 kartus','Aukštis 30 m'],
+      },
+      {
+        id:'muzikinis',
+        name:'Muzikinis Teatras',
+        lat:54.8979, lon:23.9058,
+        icon:'🎭', radius:40,
+        era:'XX amžius · 1925 m.',
+        year:'1925',
+        teaser:'Tarpukario Europos modernizmo perlas – Kauno architektūros valdas.',
+        desc:'Muzikinis teatras – vienas ryškiausių tarpukario modernizmo kūrinių Baltijos šalyse. Kauno tarpukario architektūra buvo vadinama „Lietuvos modernizmo sostine" – per 20 metų buvo pastatyta daugiau kaip 300 modernistinių pastatų.',
+        facts:['Pastatyta 1925','Art Deco stilius','Modernizmo sostinė','UNESCO preliminarusis sąrašas'],
+      },
+      {
+        id:'laisves',
+        name:'Laisvės Alėjos Galas',
+        lat:54.8989, lon:23.8958,
+        icon:'🗿', radius:40,
+        era:'XX amžius · 1862 m.',
+        year:'1862',
+        teaser:'Ilgiausia pėsčiųjų gatvė Baltijos šalyse – miesto gyvenimo ašis.',
+        desc:'Laisvės Alėja – 1,6 km ilgio pėsčiųjų bulvaras, buvęs pagrindinė Kauno arterija nuo XIX a. Čia buvo statomi svarbiausi tarpukario Kauno pastatai, atidaromos parduotuvės ir kavinės. 1972 m. čia Romas Kalanta susidegino protestuodamas prieš sovietų okupaciją.',
+        facts:['Ilgis 1,6 km','Nuo 1862 m.','Pėsčiųjų nuo 1961','R. Kalanta 1972'],
+      }
+    ]
   }
+];
 
-  function launchAR() {
-    const lat = parseFloat($('lat').value);
-    const lon = parseFloat($('lon').value);
-    if (isNaN(lat) || isNaN(lon) || lat < -90 || lat > 90 || lon < -180 || lon > 180) {
-      showErr('Netinkamos koordinatės. Patikrink įvestus skaičius.'); return;
+/* ═══════════════════════
+   STATE
+═══════════════════════ */
+let activeRoute = ROUTES[0];
+let selectedRouteIdx = 0;
+let map, userMarker, routeLine;
+let poiMarkers = [];
+let watchId = null;
+let userLat = null, userLon = null;
+let nextPoiIdx = 0;
+let visitedPois = new Set();
+let alertShown = false;
+let alertPoiIdx = -1;
+let cameraStream = null;
+let demoInterval = null;
+let demoStep = 0;
+let demoMode = false;
+
+/* ═══════════════════════
+   SCREEN NAVIGATION
+═══════════════════════ */
+function showScreen(id){
+  document.querySelectorAll('.screen').forEach(s=>s.classList.add('off'));
+  document.getElementById(id).classList.remove('off');
+}
+
+/* ═══════════════════════
+   ROUTE SELECTION
+═══════════════════════ */
+function selectRoute(idx, el){
+  document.querySelectorAll('.route-card').forEach(c=>c.classList.remove('selected'));
+  el.classList.add('selected');
+  selectedRouteIdx = idx;
+}
+
+function startTour(){
+  activeRoute = ROUTES[Math.min(selectedRouteIdx, ROUTES.length-1)];
+  showScreen('s-map');
+  initMap();
+  startGPS();
+}
+
+/* ═══════════════════════
+   MAP INIT
+═══════════════════════ */
+function initMap(){
+  if(map){ map.remove(); map=null; }
+  poiMarkers=[];
+
+  document.getElementById('map-route-title').textContent = activeRoute.name;
+
+  map = L.map('map',{
+    center: activeRoute.center,
+    zoom: activeRoute.zoom,
+    zoomControl: true,
+    attributionControl: false
+  });
+
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{
+    maxZoom:19, attribution:''
+  }).addTo(map);
+
+  // Draw route line
+  const coords = activeRoute.pois.map(p=>[p.lat,p.lon]);
+  routeLine = L.polyline(coords,{
+    color:'#8b6914', weight:3,
+    opacity:0.7, dashArray:'6,8'
+  }).addTo(map);
+
+  // POI markers
+  activeRoute.pois.forEach((poi,i)=>{
+    const div = document.createElement('div');
+    div.style.cssText=`
+      width:36px;height:36px;border-radius:50%;
+      background:rgba(26,20,13,0.92);
+      border:2px solid #8b6914;
+      display:flex;align-items:center;justify-content:center;
+      font-size:1.1rem;cursor:pointer;
+      box-shadow:0 2px 12px rgba(0,0,0,0.5);
+      transition:all .2s;
+    `;
+    div.textContent = poi.icon;
+
+    const icon = L.divIcon({html:div.outerHTML, className:'', iconSize:[36,36], iconAnchor:[18,18]});
+    const m = L.marker([poi.lat,poi.lon],{icon}).addTo(map);
+    m.on('click',()=>triggerAlert(i));
+    poiMarkers.push(m);
+  });
+
+  // User marker
+  const udiv = document.createElement('div');
+  udiv.style.cssText=`
+    width:16px;height:16px;border-radius:50%;
+    background:#4caf84;border:3px solid white;
+    box-shadow:0 0 12px rgba(76,175,132,0.7);
+  `;
+  const uicon = L.divIcon({html:udiv.outerHTML, className:'', iconSize:[16,16], iconAnchor:[8,8]});
+  userMarker = L.marker(activeRoute.center,{icon:uicon,zIndexOffset:1000}).addTo(map);
+
+  buildProgress();
+  updateNextPoi();
+}
+
+/* ─── Progress dots ─── */
+function buildProgress(){
+  const row = document.getElementById('progress-row');
+  row.innerHTML='';
+  activeRoute.pois.forEach((p,i)=>{
+    if(i>0){const l=document.createElement('div');l.className='prog-line';l.id='pl-'+i;row.appendChild(l);}
+    const d=document.createElement('div');
+    d.className='prog-dot';d.id='pd-'+i;
+    row.appendChild(d);
+  });
+  updateProgress();
+}
+
+function updateProgress(){
+  activeRoute.pois.forEach((_,i)=>{
+    const d=document.getElementById('pd-'+i);
+    if(!d)return;
+    d.className='prog-dot'+(visitedPois.has(i)?' done':(i===nextPoiIdx?' active':''));
+    if(i>0){
+      const l=document.getElementById('pl-'+i);
+      if(l) l.className='prog-line'+(visitedPois.has(i-1)?' done':'');
     }
-    const obj = $('ar-obj');
-    obj.setAttribute('gps-new-entity-place', 'latitude: ' + lat + '; longitude: ' + lon);
-    obj.setAttribute('visible', 'true');
-    hide('coords');
-    $('hud').classList.add('active');
-    setTimeout(() => $('card').classList.add('show'), 2000);
-    startGPS();
+  });
+}
+
+/* ─── Next POI bar ─── */
+function updateNextPoi(){
+  const poi = activeRoute.pois[nextPoiIdx];
+  if(!poi){
+    document.getElementById('next-icon').textContent='🏁';
+    document.getElementById('next-name').textContent='Maršrutas baigtas!';
+    document.getElementById('next-dist').textContent='';
+    return;
+  }
+  document.getElementById('next-icon').textContent=poi.icon;
+  document.getElementById('next-name').textContent=poi.name;
+}
+
+/* ═══════════════════════
+   GPS
+═══════════════════════ */
+function startGPS(){
+  if(!navigator.geolocation){
+    startDemoMode(); return;
+  }
+  watchId = navigator.geolocation.watchPosition(
+    pos => onPosition(pos.coords.latitude, pos.coords.longitude, pos.coords.accuracy),
+    err => { startDemoMode(); },
+    { enableHighAccuracy:true, maximumAge:4000, timeout:12000 }
+  );
+}
+
+function onPosition(lat,lon,acc){
+  userLat=lat; userLon=lon;
+  document.getElementById('gps-dot').classList.add('live');
+  document.getElementById('gps-label').textContent='±'+Math.round(acc||0)+'m';
+
+  if(userMarker) userMarker.setLatLng([lat,lon]);
+  if(map && !demoMode) map.panTo([lat,lon],{animate:true,duration:0.5});
+
+  checkProximity();
+}
+
+/* ─── Haversine ─── */
+function dist(lat1,lon1,lat2,lon2){
+  const R=6371000, φ1=lat1*Math.PI/180, φ2=lat2*Math.PI/180;
+  const Δφ=(lat2-lat1)*Math.PI/180, Δλ=(lon2-lon1)*Math.PI/180;
+  const a=Math.sin(Δφ/2)**2+Math.cos(φ1)*Math.cos(φ2)*Math.sin(Δλ/2)**2;
+  return R*2*Math.atan2(Math.sqrt(a),Math.sqrt(1-a));
+}
+
+function checkProximity(){
+  if(userLat===null) return;
+  const poi = activeRoute.pois[nextPoiIdx];
+  if(!poi||visitedPois.has(nextPoiIdx)) return;
+
+  const d = dist(userLat,userLon,poi.lat,poi.lon);
+  const meters = Math.round(d);
+
+  // Update distance label
+  document.getElementById('next-dist').textContent =
+    meters<1000 ? meters+'m' : (d/1000).toFixed(1)+'km';
+
+  // Proximity trigger
+  if(meters <= poi.radius && !alertShown){
+    triggerAlert(nextPoiIdx);
+  }
+}
+
+/* ─── Proximity alert ─── */
+function triggerAlert(idx){
+  alertPoiIdx = idx;
+  alertShown = true;
+  const poi = activeRoute.pois[idx];
+  document.getElementById('alert-name').textContent = poi.name;
+  document.getElementById('alert-teaser').textContent = poi.teaser;
+  document.getElementById('proximity-alert').classList.add('show');
+  if('vibrate' in navigator) navigator.vibrate([80,40,80]);
+}
+
+function hideAlert(){
+  document.getElementById('proximity-alert').classList.remove('show');
+  setTimeout(()=>{ alertShown=false; },600);
+}
+
+/* ═══════════════════════
+   DISCOVERY SCREEN
+═══════════════════════ */
+function openDiscovery(){
+  const poi = activeRoute.pois[alertPoiIdx];
+  if(!poi) return;
+
+  hideAlert();
+  populateDiscovery(poi);
+  showScreen('s-discovery');
+  startCamera();
+
+  // Timed effects
+  setTimeout(()=>{
+    document.getElementById('hist-overlay').classList.add('active');
+    document.getElementById('time-vignette').classList.add('active');
+    document.getElementById('scanlines').classList.add('active');
+    document.getElementById('year-stamp').classList.add('show');
+    document.getElementById('year-text').textContent = poi.year;
+  }, 800);
+
+  setTimeout(()=>{
+    document.getElementById('disc-card').classList.add('show');
+  }, 1500);
+}
+
+function populateDiscovery(poi){
+  document.getElementById('disc-title').textContent = poi.name;
+  document.getElementById('disc-era').textContent = poi.era;
+  document.getElementById('disc-name').textContent = poi.name;
+  document.getElementById('disc-desc').textContent = poi.desc;
+
+  const facts = document.getElementById('disc-facts');
+  facts.innerHTML = '';
+  poi.facts.forEach(f=>{
+    const span=document.createElement('span');
+    span.className='disc-fact';
+    span.textContent=f;
+    facts.appendChild(span);
+  });
+}
+
+function closeDiscovery(){
+  stopCamera();
+  document.getElementById('hist-overlay').classList.remove('active');
+  document.getElementById('time-vignette').classList.remove('active');
+  document.getElementById('scanlines').classList.remove('active');
+  document.getElementById('year-stamp').classList.remove('show');
+  document.getElementById('disc-card').classList.remove('show');
+  showScreen('s-map');
+}
+
+function markDone(){
+  visitedPois.add(alertPoiIdx);
+  // Advance to next unvisited POI
+  for(let i=0;i<activeRoute.pois.length;i++){
+    if(!visitedPois.has(i)){ nextPoiIdx=i; break; }
+    if(i===activeRoute.pois.length-1) nextPoiIdx=activeRoute.pois.length;
+  }
+  updateProgress();
+  updateNextPoi();
+  stopCamera();
+
+  // Reset effects
+  document.getElementById('hist-overlay').classList.remove('active');
+  document.getElementById('time-vignette').classList.remove('active');
+  document.getElementById('scanlines').classList.remove('active');
+  document.getElementById('year-stamp').classList.remove('show');
+  document.getElementById('disc-card').classList.remove('show');
+
+  showScreen('s-map');
+  showToast('✓ Stotelė pažymėta kaip aplankyta');
+
+  if(nextPoiIdx >= activeRoute.pois.length){
+    setTimeout(()=>showToast('🏁 Maršrutas baigtas! Puiku!'), 1200);
+  }
+}
+
+/* ═══════════════════════
+   CAMERA
+═══════════════════════ */
+async function startCamera(){
+  document.getElementById('cam-loading').style.display='flex';
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia({
+      video:{ facingMode:{ideal:'environment'}, width:{ideal:1280}, height:{ideal:720} },
+      audio: false
+    });
+    cameraStream = stream;
+    const vid = document.getElementById('cam-feed');
+    vid.srcObject = stream;
+    vid.style.transform = ''; // back camera – no mirror
+    await vid.play();
+    document.getElementById('cam-loading').style.display='none';
+  } catch(e){
+    // Fallback – hide loading, show dark bg with effect
+    document.getElementById('cam-loading').style.display='none';
+    document.getElementById('cam-feed').style.display='none';
+    document.getElementById('s-discovery').style.background=
+      'linear-gradient(160deg,#1a0f05 0%,#0d1506 50%,#0a0d12 100%)';
+  }
+}
+
+function stopCamera(){
+  if(cameraStream){
+    cameraStream.getTracks().forEach(t=>t.stop());
+    cameraStream=null;
+  }
+  const vid=document.getElementById('cam-feed');
+  vid.srcObject=null;
+  vid.style.display='block';
+  document.getElementById('s-discovery').style.background='#000';
+}
+
+/* ═══════════════════════
+   DEMO MODE (no GPS)
+═══════════════════════ */
+function startDemoMode(){
+  demoMode=true;
+  document.getElementById('demo-banner').classList.add('show');
+  document.getElementById('gps-dot').classList.add('live');
+  document.getElementById('gps-label').textContent='Demo';
+
+  // Simulate walking along route
+  const pois = activeRoute.pois;
+  let demoIdx = 0;
+
+  function stepDemo(){
+    if(demoIdx >= pois.length){ clearInterval(demoInterval); return; }
+    const poi = pois[demoIdx];
+    // Simulate approaching – start 150m away, move closer
+    let simDist = 150;
+    const approach = setInterval(()=>{
+      simDist -= 15;
+      if(simDist <= poi.radius){
+        clearInterval(approach);
+        // Simulate arrival
+        onPosition(poi.lat + 0.0001, poi.lon + 0.0001, 8);
+        demoIdx++;
+        setTimeout(stepDemo, 8000); // wait 8s then approach next
+      } else {
+        // Intermediate position
+        const frac = simDist/150;
+        const fromLat = poi.lat + frac*0.001;
+        const fromLon = poi.lon + frac*0.001;
+        onPosition(fromLat, fromLon, 12);
+        const meters=Math.round(dist(fromLat,fromLon,poi.lat,poi.lon));
+        document.getElementById('next-dist').textContent=meters+'m';
+      }
+    }, 800);
   }
 
-  function startGPS() {
-    if (!navigator.geolocation) return;
-    navigator.geolocation.watchPosition(
-      pos => {
-        $('dot').classList.add('ok');
-        $('gps-txt').textContent =
-          pos.coords.latitude.toFixed(4) + ', ' + pos.coords.longitude.toFixed(4) +
-          ' \u00b1' + Math.round(pos.coords.accuracy) + 'm';
-      },
-      () => { $('dot').classList.remove('ok'); $('gps-txt').textContent = 'GPS klaida'; },
-      { enableHighAccuracy: true, maximumAge: 5000, timeout: 15000 }
-    );
-  }
+  // Start after short delay
+  setTimeout(stepDemo, 1500);
+}
 
-  function showErr(msg) {
-    const el = $('err');
-    el.textContent = '\u26a0\ufe0f ' + msg;
-    el.classList.add('show');
-    setTimeout(() => el.classList.remove('show'), 5000);
-  }
+/* ═══════════════════════
+   TOAST
+═══════════════════════ */
+function showToast(msg){
+  const t=document.getElementById('toast');
+  t.textContent=msg;
+  t.classList.add('show');
+  setTimeout(()=>t.classList.remove('show'), 3000);
+}
+
+/* Tap on map hides alert */
+document.getElementById('map')?.addEventListener('click',()=>{
+  if(document.getElementById('proximity-alert').classList.contains('show')) hideAlert();
+});
 </script>
 
 </body>
